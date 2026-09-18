@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { ensureDb, sql } from '@/lib/db';
-import { notify } from '@/lib/telegram';
+import { ensureDb, sql } from '../../../lib/db';
+import { notify } from '../../../lib/telegram';
 export async function POST(req:Request){
   try{
     const b=await req.json();
