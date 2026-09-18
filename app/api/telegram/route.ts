@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { ensureDb, sql } from '@/lib/db';
-import { adminIds, tg } from '@/lib/telegram';
+import { ensureDb, sql } from '../../../lib/db';
+import { adminIds, tg } from '../../../lib/telegram';
 export async function POST(req:Request){
   const update=await req.json();
   const msg=update.message;
