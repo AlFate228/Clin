@@ -65,7 +65,9 @@ function pad(n: number) {
 }
 
 function key(d: Date) {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(
+    d.getDate()
+  )}`;
 }
 
 export default function Home() {
@@ -76,6 +78,7 @@ export default function Home() {
   const [date, setDate] = useState('');
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
+  const [loadingCalendar, setLoadingCalendar] = useState(true);
 
   const [form, setForm] = useState({
     name: '',
@@ -86,51 +89,70 @@ export default function Home() {
     extra: '',
   });
 
+  // Загружаем занятые даты
   useEffect(() => {
-    fetch('/api/calendar')
-      .then((r) => r.json())
-      .then((x) => {
-        setBlocked(x.blocked || []);
-        setBooked(x.booked || []);
-      })
-      .catch(() => {
+    async function loadCalendar() {
+      try {
+        setLoadingCalendar(true);
+
+        const response = await fetch('/api/calendar', {
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
+          throw new Error('Calendar request failed');
+        }
+
+        const data = await response.json();
+
+        setBlocked(Array.isArray(data.blocked) ? data.blocked : []);
+        setBooked(Array.isArray(data.booked) ? data.booked : []);
+      } catch (err) {
+        console.error(err);
         setError('Не удалось загрузить календарь.');
-      });
+      } finally {
+        setLoadingCalendar(false);
+      }
+    }
+
+    loadCalendar();
   }, []);
 
   const days = useMemo(() => {
-    const y = cursor.getFullYear();
-    const m = cursor.getMonth();
+    const year = cursor.getFullYear();
+    const month = cursor.getMonth();
 
-    const first = new Date(y, m, 1);
+    const first = new Date(year, month, 1);
     const offset = (first.getDay() + 6) % 7;
-    const count = new Date(y, m + 1, 0).getDate();
+    const count = new Date(year, month + 1, 0).getDate();
 
-    const a: (Date | null)[] = [];
+    const result: (Date | null)[] = [];
 
     for (let i = 0; i < offset; i++) {
-      a.push(null);
+      result.push(null);
     }
 
     for (let d = 1; d <= count; d++) {
-      a.push(new Date(y, m, d));
+      result.push(new Date(year, month, d));
     }
 
-    return a;
+    return result;
   }, [cursor]);
 
-  const isBusy = (k: string) => {
-    return blocked.includes(k) || booked.includes(k);
+  const isBusy = (dateKey: string) => {
+    return blocked.includes(dateKey) || booked.includes(dateKey);
   };
 
-  function add(s: any) {
-    if (!cart.some((x) => x.id === s.id)) {
-      setCart([...cart, s]);
+  function add(service: any) {
+    if (!cart.some((item) => item.id === service.id)) {
+      setCart((current) => [...current, service]);
     }
   }
 
   function remove(id: string) {
-    setCart(cart.filter((x) => x.id !== id));
+    setCart((current) =>
+      current.filter((item) => item.id !== id)
+    );
   }
 
   async function submit(e: any) {
@@ -150,7 +172,7 @@ export default function Home() {
     }
 
     try {
-      const r = await fetch('/api/bookings', {
+      const response = await fetch('/api/bookings', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
@@ -162,14 +184,17 @@ export default function Home() {
         }),
       });
 
-      const x = await r.json();
+      const data = await response.json();
 
-      if (!r.ok) {
-        setError(x.error || 'Ошибка при отправке заявки.');
+      if (!response.ok) {
+        setError(
+          data.error || 'Ошибка при отправке заявки.'
+        );
         return;
       }
 
       setSent(true);
+
       setCart([]);
 
       setForm({
@@ -182,8 +207,12 @@ export default function Home() {
       });
 
       setDate('');
-    } catch {
-      setError('Не удалось отправить заявку. Попробуйте ещё раз.');
+    } catch (err) {
+      console.error(err);
+
+      setError(
+        'Не удалось отправить заявку. Проверьте соединение и попробуйте ещё раз.'
+      );
     }
   }
 
@@ -195,7 +224,8 @@ export default function Home() {
             <img
               src="/logo.png"
               onError={(e: any) => {
-                e.currentTarget.src = '/logo-placeholder.svg';
+                e.currentTarget.src =
+                  '/logo-placeholder.svg';
               }}
               alt="Логотип"
             />
@@ -224,17 +254,24 @@ export default function Home() {
             </h1>
 
             <p>
-              Глубокая химчистка салона автомобиля с вниманием к деталям.
-              Выберите услуги, свободную дату и отправьте заявку — мойщики
-              сразу увидят её в Telegram.
+              Глубокая химчистка салона автомобиля с
+              вниманием к деталям. Выберите услуги,
+              свободную дату и отправьте заявку —
+              мойщики сразу увидят её в Telegram.
             </p>
 
             <div className="actions">
-              <a className="btn primary" href="#booking">
+              <a
+                className="btn primary"
+                href="#booking"
+              >
                 Записаться на химчистку
               </a>
 
-              <a className="btn secondary" href="#services">
+              <a
+                className="btn secondary"
+                href="#services"
+              >
                 Посмотреть услуги
               </a>
             </div>
@@ -246,7 +283,9 @@ export default function Home() {
             <div className="trust">
               <div>
                 <span className="dot" />
-                <span>Выбираете нужные услуги и дату.</span>
+                <span>
+                  Выбираете нужные услуги и дату.
+                </span>
               </div>
 
               <div>
@@ -259,15 +298,16 @@ export default function Home() {
               <div>
                 <span className="dot" />
                 <span>
-                  Заявка сразу приходит в Telegram мойщикам.
+                  Заявка сразу приходит в Telegram
+                  мойщикам.
                 </span>
               </div>
 
               <div>
                 <span className="dot" />
                 <span>
-                  Финальная стоимость подтверждается после оценки
-                  состояния авто.
+                  Финальная стоимость подтверждается после
+                  оценки состояния авто.
                 </span>
               </div>
             </div>
@@ -282,33 +322,41 @@ export default function Home() {
                 <h2>Услуги</h2>
 
                 <p>
-                  Добавляйте несколько позиций в одну заявку — например,
-                  полную химчистку и снятие ковролина.
+                  Добавляйте несколько позиций в одну
+                  заявку — например, полную химчистку и
+                  снятие ковролина.
                 </p>
               </div>
             </div>
 
             <div className="services">
-              {SERVICES.map((s) => (
-                <article className="service" key={s.id}>
-                  <h3>{s.name}</h3>
+              {SERVICES.map((service) => (
+                <article
+                  className="service"
+                  key={service.id}
+                >
+                  <h3>{service.name}</h3>
 
                   <p>
-                    {s.id === 'sedan' ||
-                    s.id === 'crossover' ||
-                    s.id === 'suv'
+                    {service.id === 'sedan' ||
+                    service.id === 'crossover' ||
+                    service.id === 'suv'
                       ? 'Полная обработка салона. Точная цена зависит от размера и состояния автомобиля.'
                       : 'Отдельная услуга для локальной очистки и ухода за салоном.'}
                   </p>
 
-                  <div className="price">{s.price}</div>
+                  <div className="price">
+                    {service.price}
+                  </div>
 
                   <button
                     className="btn secondary"
                     style={{ marginTop: 14 }}
-                    onClick={() => add(s)}
+                    onClick={() => add(service)}
                   >
-                    {cart.some((x) => x.id === s.id)
+                    {cart.some(
+                      (item) => item.id === service.id
+                    )
                       ? 'Добавлено'
                       : 'Добавить в заявку'}
                   </button>
@@ -317,10 +365,12 @@ export default function Home() {
             </div>
 
             <div className="note">
-              <b>Важно:</b> указанные цены являются ориентировочными.
-              Итоговая стоимость может быть увеличена в зависимости от
-              степени загрязнения, состояния салона, сложности работ и
-              необходимости дополнительных процедур.
+              <b>Важно:</b> указанные цены являются
+              ориентировочными. Итоговая стоимость может
+              быть увеличена в зависимости от степени
+              загрязнения, состояния салона, сложности
+              работ и необходимости дополнительных
+              процедур.
             </div>
           </div>
         </section>
@@ -333,8 +383,8 @@ export default function Home() {
                 <h2>Выберите дату</h2>
 
                 <p>
-                  Голубая отметка — дата доступна для записи. Красная —
-                  день занят.
+                  Голубая отметка — дата доступна для
+                  записи. Красная — день занят.
                 </p>
               </div>
             </div>
@@ -343,6 +393,7 @@ export default function Home() {
               <div className="calendar">
                 <div className="cal-head">
                   <button
+                    type="button"
                     onClick={() =>
                       setCursor(
                         new Date(
@@ -362,6 +413,7 @@ export default function Home() {
                   </b>
 
                   <button
+                    type="button"
                     onClick={() =>
                       setCursor(
                         new Date(
@@ -377,24 +429,39 @@ export default function Home() {
                 </div>
 
                 <div className="dow">
-                  {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map(
-                    (x) => (
-                      <div key={x}>{x}</div>
-                    )
-                  )}
+                  {[
+                    'Пн',
+                    'Вт',
+                    'Ср',
+                    'Чт',
+                    'Пт',
+                    'Сб',
+                    'Вс',
+                  ].map((day) => (
+                    <div key={day}>{day}</div>
+                  ))}
                 </div>
 
                 <div className="days">
-                  {days.map((d, i) =>
-                    d ? (
+                  {days.map((day, index) =>
+                    day ? (
                       <button
-                        key={i}
+                        type="button"
+                        key={index}
                         className={`day ${
-                          isBusy(key(d)) ? 'busy' : 'free'
-                        } ${date === key(d) ? 'selected' : ''}`}
-                        disabled={isBusy(key(d))}
+                          isBusy(key(day))
+                            ? 'busy'
+                            : 'free'
+                        } ${
+                          date === key(day)
+                            ? 'selected'
+                            : ''
+                        }`}
+                        disabled={isBusy(key(day))}
                         onClick={() => {
-                          setDate(key(d));
+                          const selectedDate = key(day);
+
+                          setDate(selectedDate);
 
                           document
                             .getElementById('booking')
@@ -403,25 +470,39 @@ export default function Home() {
                             });
                         }}
                       >
-                        <span>{d.getDate()}</span>
+                        <span>{day.getDate()}</span>
                       </button>
                     ) : (
-                      <div key={i} />
+                      <div key={index} />
                     )
                   )}
                 </div>
 
                 <div className="legend">
                   <span>
-                    <i style={{ background: 'var(--blue)' }} />
+                    <i
+                      style={{
+                        background: 'var(--blue)',
+                      }}
+                    />
                     свободно
                   </span>
 
                   <span>
-                    <i style={{ background: 'var(--red)' }} />
+                    <i
+                      style={{
+                        background: 'var(--red)',
+                      }}
+                    />
                     занято
                   </span>
                 </div>
+
+                {loadingCalendar && (
+                  <div className="calendar-loading">
+                    Загружаем календарь...
+                  </div>
+                )}
               </div>
 
               <div className="booking">
@@ -436,13 +517,19 @@ export default function Home() {
                 <div className="cart">
                   {cart.length ? (
                     <>
-                      {cart.map((s) => (
-                        <div className="cart-row" key={s.id}>
-                          <span>{s.name}</span>
+                      {cart.map((service) => (
+                        <div
+                          className="cart-row"
+                          key={service.id}
+                        >
+                          <span>{service.name}</span>
 
                           <button
+                            type="button"
                             className="remove"
-                            onClick={() => remove(s.id)}
+                            onClick={() =>
+                              remove(service.id)
+                            }
                           >
                             удалить
                           </button>
@@ -468,8 +555,9 @@ export default function Home() {
                 <h2>Заявка</h2>
 
                 <p>
-                  Оставьте данные — мы свяжемся с вами для подтверждения
-                  времени и итоговой стоимости.
+                  Оставьте данные — мы свяжемся с вами для
+                  подтверждения времени и итоговой
+                  стоимости.
                 </p>
               </div>
             </div>
@@ -478,17 +566,16 @@ export default function Home() {
               <div className="success">
                 <b>Заявка отправлена.</b>
                 <br />
-                Она уже пришла мойщикам в Telegram. С вами свяжутся для
-                подтверждения записи.
+                Она уже пришла мойщикам в Telegram. С
+                вами свяжутся для подтверждения записи.
               </div>
             ) : (
-              <form className="booking" onSubmit={submit}>
+              <form
+                className="booking"
+                onSubmit={submit}
+              >
                 <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: 14,
-                  }}
+                  className="booking-grid"
                 >
                   <div className="field">
                     <label>Имя *</label>
@@ -510,6 +597,7 @@ export default function Home() {
                     <label>Номер телефона *</label>
 
                     <input
+                      type="tel"
                       value={form.phone}
                       onChange={(e) =>
                         setForm({
@@ -608,7 +696,10 @@ export default function Home() {
                   </div>
                 )}
 
-                <button className="btn primary" type="submit">
+                <button
+                  className="btn primary"
+                  type="submit"
+                >
                   Отправить заявку
                 </button>
 
@@ -616,8 +707,9 @@ export default function Home() {
                   className="small"
                   style={{ marginTop: 12 }}
                 >
-                  Отправляя заявку, вы соглашаетесь на обработку
-                  указанных данных для связи по записи.
+                  Отправляя заявку, вы соглашаетесь на
+                  обработку указанных данных для связи по
+                  записи.
                 </p>
               </form>
             )}
